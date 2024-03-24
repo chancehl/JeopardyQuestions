@@ -1,8 +1,5 @@
 #!/usr/bin/env bash
-
-# capture required exes
-cat_path=$(which cat)
-jq_path=$(which jq)
+set -euo pipefail
 
 # look for .json files
 json_files=$(find ./src -maxdepth 1 -type f)
@@ -14,16 +11,19 @@ index=1
 function parse_questions() {
     local file_path=$1
     
-    jq 'map(.rounds[].questions[]) | group_by(.prompt) | map(.[0])' "$file_path" >> "./out/questions_$index.json"
+    jq 'map(.rounds[].questions[]) | group_by(.prompt) | map(.[0])' "$file_path" >> "./tmp.questions_$index.json"
 
     ((index++))
 }
 
-# touch out dir
-mkdir "./out"
+# generate tmp files
+for i in $json_files; do [ -f "$i" ] && parse_questions "$i"; done
 
-# iterate over files
-for i in $json_files; do [ -f "$i" ] && parse_questions $i; done
+# combine the question files
+jq -s 'add' tmp.questions*.json > combined.json
+
+# cleanup
+rm -rf ./tmp.questions*.json
 
 # tell user we're done
 echo "Complete! Check ./out directory"
