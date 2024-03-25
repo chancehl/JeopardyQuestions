@@ -26,4 +26,4 @@ jq -s 'add' tmp.questions*.json > combined.json
 rm -rf ./tmp.questions*.json
 
 # tell user we're done
-echo "Complete! Check ./out directory"
+echo "[combine.sh] complete"
