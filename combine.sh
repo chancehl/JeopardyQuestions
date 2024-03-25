@@ -11,7 +11,7 @@ index=1
 function parse_questions() {
     local file_path=$1
     
-    jq 'map(.rounds[].questions[]) | group_by(.prompt) | map(.[0])' "$file_path" >> "./tmp.questions_$index.json"
+    jq 'map({gameId: .id, questions: .rounds[].questions[]}) | map(.questions.gameId = .gameId) | map(.questions) | group_by(.prompt) | map(.[0])' "$file_path" >> "./tmp.questions_$index.json"
 
     ((index++))
 }
