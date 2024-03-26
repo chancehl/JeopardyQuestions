@@ -1,6 +1,5 @@
 #!/usr/bin/env node
 const fs = require("fs");
-const crypto = require("crypto");
 
 const order = ["Jeopardy", "DoubleJeopardy", "FinalJeopardy"];
 
@@ -8,7 +7,7 @@ const order = ["Jeopardy", "DoubleJeopardy", "FinalJeopardy"];
 const data = JSON.parse(fs.readFileSync("./combined.json"));
 
 // generate id
-let dataWithIds = data.map((v) => ({ ...v, id: crypto.randomUUID() }));
+let dataWithIds = data.map((v, i) => ({ ...v, id: i }));
 
 // sort by round
 dataWithIds.sort((a, b) => order.indexOf(a.round) - order.indexOf(b.round));
