@@ -1,6 +1,9 @@
 #!/usr/bin/env node
 const fs = require("fs");
 
+// tell user we're starting
+console.log("Formatting combined.json...");
+
 const order = ["Jeopardy", "DoubleJeopardy", "FinalJeopardy"];
 
 // read data
@@ -30,4 +33,4 @@ const newData = JSON.stringify(dataWithIds, null, 2);
 fs.writeFileSync("./combined.json", newData, { encoding: "utf-8", flag: "w" });
 
 // inform user of success
-console.log("[format.js] complete");
+console.log("Successfully formatted question data");

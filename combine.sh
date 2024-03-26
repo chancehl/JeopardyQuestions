@@ -1,6 +1,9 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+# tell user we're starting
+echo "Combining files..."
+
 # look for .json files
 json_files=$(find ./src -maxdepth 1 -type f)
 
@@ -9,6 +12,8 @@ index=1
 
 # this does all the heavy lifting
 function parse_questions() {
+    echo "Processing file $index: $1"
+
     local file_path=$1
     
     jq 'map({gameId: .id, questions: .rounds[].questions[]}) | map(.questions.gameId = .gameId) | map(.questions) | group_by(.prompt) | map(.[0])' "$file_path" >> "./tmp.questions_$index.json"
@@ -26,4 +31,4 @@ jq -s 'add' tmp.questions*.json > combined.json
 rm -rf ./tmp.questions*.json
 
 # tell user we're done
-echo "[combine.sh] complete"
+echo "Successfully combined files into ./combined.json"
