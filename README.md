@@ -26,7 +26,8 @@ format.js               # combined.json -> combined.json (sort + assign ids)
 - [`jq`](https://jqlang.github.io/jq/) — recent macOS ships it at `/usr/bin/jq`;
   otherwise `brew install jq` or your package manager. Tested on 1.7.1.
 - Node — any modern version. Tested on 24.
-- ~500 MB free disk: the clone is ~350 MB and the build adds ~139 MB.
+- ~400 MB free disk: the clone is ~215 MB (152 MB working tree + 63 MB of git
+  history) and the build output adds ~139 MB.
 
 ## Building `combined.json`
 
