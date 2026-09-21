@@ -4,6 +4,10 @@ A dataset of ~564,000 Jeopardy! clues scraped from 9,501 episodes (air dates
 September 6, 2004 through September 21, 2026), plus two small scripts that
 flatten the per-episode archive into a single question list.
 
+The archive in `src/` is the source of truth and is checked in. The flat clue
+list, `combined.json`, is a build artifact — it is gitignored, and you generate
+it yourself after cloning.
+
 ## Layout
 
 ```
@@ -17,19 +21,43 @@ combine.sh              # src/*.json -> combined.json  (flatten + dedupe)
 format.js               # combined.json -> combined.json (sort + assign ids)
 ```
 
-`combined.json` is a build artifact and is gitignored.
+## Requirements
+
+- [`jq`](https://jqlang.github.io/jq/) — recent macOS ships it at `/usr/bin/jq`;
+  otherwise `brew install jq` or your package manager. Tested on 1.7.1.
+- Node — any modern version. Tested on 24.
+- ~500 MB free disk: the clone is ~350 MB and the build adds ~139 MB.
 
 ## Building `combined.json`
 
-Requires [`jq`](https://jqlang.github.io/jq/) and Node.
-
 ```sh
-./combine.sh   # ~6s, flattens and dedupes into ./combined.json
-node format.js # ~1s, sorts in place and assigns ids (~139 MB final)
+git clone https://github.com/chancehl/JeopardyQuestions.git
+cd JeopardyQuestions
+
+./combine.sh    # ~6s  — flattens and dedupes
+node format.js  # ~1s  — sorts and assigns ids
 ```
 
-A full rebuild is deterministic: the same `src/` always produces a
-byte-identical `combined.json`.
+That's the whole process. It's deterministic: the same `src/` always produces a
+byte-identical `combined.json`, and re-running either script is a no-op. If
+`combine.sh` fails partway it leaves your previous `combined.json` untouched
+rather than truncating it.
+
+## Verifying your build
+
+Four checks, each a couple of seconds. Expected output is in the comment.
+
+```sh
+jq 'length' combined.json                                   # 563776
+jq '[.[].id] == [range(0; length)]' combined.json           # true
+
+jq '[group_by([.prompt,.answer,.category,.value])[]
+     | select(length > 1)] | length' combined.json          # 0  (no exact dupes)
+
+jq '["Jeopardy","DoubleJeopardy","FinalJeopardy"] as $o
+    | [.[] | .round as $r | [.category, (.value // -1), ($o | index($r))]]
+    | . == sort' combined.json                              # true (sort order)
+```
 
 ## Data format
 
@@ -63,9 +91,9 @@ Each file is an array of episodes. Every episode has exactly three rounds.
 
 ### Output — `combined.json`
 
-A flat array of clues. `gameId` back-references the episode's `id`; `id` is a
-sequential index assigned by `format.js` after sorting, so it matches the
-clue's position in the array.
+A flat array of clues, sorted by category, then value, then round. `gameId`
+back-references the episode's `id`. `id` is assigned after sorting, so it
+matches the clue's position in the array.
 
 ```json
 {
@@ -79,7 +107,8 @@ clue's position in the array.
 }
 ```
 
-Clues are sorted by category, then value, then round.
+`id` is positional, so it changes whenever episodes are added. Use `gameId` if
+you need a reference that survives a rebuild.
 
 ## What's in it
 
@@ -95,6 +124,27 @@ Clues are sorted by category, then value, then round.
 
 Values are the board values, not wagers — Daily Doubles and Final Jeopardy
 carry no wager information.
+
+## Adding episodes
+
+New episodes go into a new chunk file in `src/`, named
+`episodes_<start>_<end>.json`. Episodes missing from an already-committed range
+go into `src/episodes_gaps.json` instead of being merged back into the ranged
+file — that's what the gaps file is for.
+
+Episode `id` is the episode number and must be unique across every file in
+`src/`. After adding data, check the archive before rebuilding:
+
+```sh
+# count should equal unique
+jq -s 'add | [.[].id] | {count: length, unique: (unique | length)}' src/*.json
+
+# every episode needs all three rounds; expect 0
+jq -s 'add | map(select((.rounds | length) != 3)) | length' src/*.json
+```
+
+Then rebuild, and expect the clue count to go up by roughly 60 per episode
+added.
 
 ## Known gaps
 
@@ -120,3 +170,8 @@ different correct responses, so collapsing them would destroy real clues:
    ep2030 [NAME THE NARRATOR]               -> Alex
    ep4720 [THEY TURNED MY BOOK INTO A MOVIE] -> (Anthony) Burgess
 ```
+
+## Scope
+
+This repo is the archive plus the flattening scripts. The scraper that produced
+`src/` lives elsewhere and is not part of this codebase.

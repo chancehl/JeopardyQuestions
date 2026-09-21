@@ -32,6 +32,10 @@ Both steps are deterministic and idempotent: rebuilding from an unchanged
 `src/` gives a byte-identical file, and re-running `format.js` on its own
 output changes nothing. If a change to either script breaks that, it's a bug.
 
+**After any change to either script, run the four checks under "Verifying your
+build" in README.md** and paste the results. They cover clue count, id
+sequencing, exact duplicates and sort order, and take about 8 seconds total.
+
 Things worth knowing before you change them:
 
 - **The dedupe key is deliberate.** `combine.sh` drops only exact duplicates
@@ -50,6 +54,10 @@ Things worth knowing before you change them:
 - **`value` is `null` for Final Jeopardy,** which the comparator handles via
   the `a.value !== b.value` guard before the subtraction. Sorting changes need
   to keep `null` ordering deterministic.
+- **`combine.sh` writes through a temp file** and checks for `jq` up front, so
+  a failed run leaves the previous `combined.json` intact. Keep that property:
+  redirecting straight into `combined.json` means an interrupted build silently
+  truncates it and `format.js` then fails on a zero-byte file.
 - **`combined.json` is gitignored.** Don't commit it, and don't check it in as
   "regenerated output".
 
@@ -68,8 +76,9 @@ jq -s 'add | [.[].id] | {count: length, unique: (unique | length)}' src/*.json
 jq -s 'add | map(select((.rounds | length) != 3)) | length' src/*.json  # expect 0
 ```
 
-Then rebuild and confirm the clue count moved in the direction you expect
-(563,776 as of the 9,501-episode archive).
+Then rebuild and confirm the clue count moved in the direction you expect —
+roughly 60 clues per episode added, from a base of 563,776 across the current
+9,501 episodes.
 
 ## Data conventions
 
