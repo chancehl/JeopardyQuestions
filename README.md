@@ -24,9 +24,12 @@ format.js               # combined.json -> combined.json (sort + assign ids)
 Requires [`jq`](https://jqlang.github.io/jq/) and Node.
 
 ```sh
-./combine.sh   # ~10s, writes ./combined.json (~129 MB)
-node format.js # sorts in place and assigns ids
+./combine.sh   # ~6s, flattens and dedupes into ./combined.json
+node format.js # ~1s, sorts in place and assigns ids (~139 MB final)
 ```
+
+A full rebuild is deterministic: the same `src/` always produces a
+byte-identical `combined.json`.
 
 ## Data format
 
@@ -61,7 +64,8 @@ Each file is an array of episodes. Every episode has exactly three rounds.
 ### Output — `combined.json`
 
 A flat array of clues. `gameId` back-references the episode's `id`; `id` is a
-sequential index assigned by `format.js`.
+sequential index assigned by `format.js` after sorting, so it matches the
+clue's position in the array.
 
 ```json
 {
@@ -71,22 +75,22 @@ sequential index assigned by `format.js`.
   "value": 200,
   "answer": "Extra!",
   "gameId": 1815,
-  "id": 243227
+  "id": 0
 }
 ```
 
-Clues are sorted by category, then by value.
+Clues are sorted by category, then value, then round.
 
 ## What's in it
 
 | | |
 |---|---|
 | Episodes | 9,501 |
-| Clues | 563,884 |
-| — Jeopardy | 278,365 |
-| — Double Jeopardy | 276,002 |
+| Clues | 563,776 |
+| — Jeopardy | 278,378 |
+| — Double Jeopardy | 275,881 |
 | — Final Jeopardy | 9,517 |
-| Distinct categories | 59,306 |
+| Distinct categories | 59,312 |
 | Clue values | 200, 400, 600, 800, 1000, 1200, 1600, 2000, `null` (Final Jeopardy) |
 
 Values are the board values, not wagers — Daily Doubles and Final Jeopardy
@@ -101,6 +105,18 @@ carry no wager information.
 9161, 9165, 9450, 9452, 9505-9514, 9522-9532
 ```
 
-`combine.sh` dedupes repeated prompts within each source file but not across
-files, so `combined.json` contains ~3,700 duplicate prompts (mostly clues that
-were reused across episodes landing in different chunks).
+## Duplicates
+
+`combine.sh` removes clues that match another clue exactly — same prompt,
+answer, category and value — keeping the earliest airing. That drops 884 rows
+out of 564,660.
+
+It deliberately does *not* dedupe on prompt alone. 3,583 rows in the output
+share a prompt with some other row, but 1,426 of those prompt groups have
+different correct responses, so collapsing them would destroy real clues:
+
+```
+"A Clockwork Orange"
+   ep2030 [NAME THE NARRATOR]               -> Alex
+   ep4720 [THEY TURNED MY BOOK INTO A MOVIE] -> (Anthony) Burgess
+```

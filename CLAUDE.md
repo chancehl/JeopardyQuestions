@@ -4,7 +4,7 @@ Guidance for working in this repo. See README.md for the dataset description.
 
 ## Never read the data files directly
 
-Every file in `src/` is 4–8 MB of JSON, and `combined.json` is ~129 MB. Reading
+Every file in `src/` is 4–8 MB of JSON, and `combined.json` is ~139 MB. Reading
 one with the Read tool will blow up the context window for no benefit. Use `jq`
 instead, always with a projection or aggregation that returns something small:
 
@@ -20,28 +20,36 @@ few seconds, but pipe it into an aggregation, never into the terminal raw.
 
 ## The build pipeline
 
-Two steps, in this order — `format.js` reads `combined.json` and errors out if `combine.sh` has not run:
+Two steps, in this order — `format.js` reads `combined.json` and errors out if
+`combine.sh` has not run:
 
 ```sh
-./combine.sh    # src/*.json -> ./combined.json
-node format.js  # rewrites ./combined.json in place
+./combine.sh    # src/*.json -> ./combined.json   (~6s)
+node format.js  # rewrites ./combined.json in place (~1s)
 ```
 
-Things about these scripts that are easy to get wrong:
+Both steps are deterministic and idempotent: rebuilding from an unchanged
+`src/` gives a byte-identical file, and re-running `format.js` on its own
+output changes nothing. If a change to either script breaks that, it's a bug.
 
-- **`combine.sh` appends (`>>`) to `tmp.questions_N.json`.** It deletes those
-  temp files on success, but if a run is interrupted they survive, and the next
-  run appends to them — producing silently duplicated clues. Check for and
-  remove `tmp.questions_*.json` before re-running after any failure.
-- **`combine.sh` globs every file in `src/`,** not just `*.json`
-  (`find ./src -maxdepth 1 -type f`). Anything you drop in that directory gets
-  fed to `jq` and will fail the run. Keep scratch files elsewhere.
-- **Dedupe is per-file, not global.** The `group_by(.prompt) | map(.[0])` step
-  runs inside each source file, so repeated prompts across chunks survive into
-  `combined.json` (~3,700 of them).
-- **`format.js` is not id-stable.** It assigns `id` by array index on each run,
-  so running it twice, or rebuilding after adding episodes, renumbers
-  everything. `gameId` is the stable reference; `id` is not.
+Things worth knowing before you change them:
+
+- **The dedupe key is deliberate.** `combine.sh` drops only exact duplicates
+  (`[prompt, answer, category, value]`), keeping the lowest `gameId`. Do not
+  "simplify" it to dedupe on `prompt` alone: 1,426 duplicate-prompt groups have
+  *different* answers (`"A Clockwork Orange"` is `Alex` in NAME THE NARRATOR
+  and `(Anthony) Burgess` in THEY TURNED MY BOOK INTO A MOVIE). Prompt-only
+  dedupe silently deletes ~3,600 real clues.
+- **`format.js` assigns `id` after sorting,** so `id` equals array position.
+  It is still derived from position, not from the source data — adding
+  episodes renumbers everything. `gameId` is the only stable cross-build
+  reference.
+- **The sort comparator is explicit** (category, then value, then round). An
+  earlier version relied on V8's stable sort to carry the round ordering
+  through a second `sort` call; don't reintroduce that.
+- **`value` is `null` for Final Jeopardy,** which the comparator handles via
+  the `a.value !== b.value` guard before the subtraction. Sorting changes need
+  to keep `null` ordering deterministic.
 - **`combined.json` is gitignored.** Don't commit it, and don't check it in as
   "regenerated output".
 
@@ -60,7 +68,8 @@ jq -s 'add | [.[].id] | {count: length, unique: (unique | length)}' src/*.json
 jq -s 'add | map(select((.rounds | length) != 3)) | length' src/*.json  # expect 0
 ```
 
-Then rebuild and confirm the clue count moved in the direction you expect.
+Then rebuild and confirm the clue count moved in the direction you expect
+(563,776 as of the 9,501-episode archive).
 
 ## Data conventions
 
@@ -72,7 +81,7 @@ Then rebuild and confirm the clue count moved in the direction you expect.
 - `prompt` is the clue shown to contestants; `answer` is the correct response,
   stored without the "What is…" phrasing and often with parenthetical
   alternatives (`"(Sean) Combs"`, `"Classic Comics (or Classics Illustrated)"`).
-- `category` is upper-case as aired and is not normalized — 59,306 distinct
+- `category` is upper-case as aired and is not normalized — 59,312 distinct
   values, many differing only by punctuation.
 
 ## Scope

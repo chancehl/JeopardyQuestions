@@ -9,28 +9,29 @@ const order = ["Jeopardy", "DoubleJeopardy", "FinalJeopardy"];
 // read data
 const data = JSON.parse(fs.readFileSync("./combined.json"));
 
-// generate id
-let dataWithIds = data.map((v, i) => ({ ...v, id: i }));
-
-// sort by round
-dataWithIds.sort((a, b) => order.indexOf(a.round) - order.indexOf(b.round));
-
-// sort by category
-dataWithIds.sort((a, b) => {
-  if (a.category === b.category) {
-    return a.value - b.value;
-  } else if (a.category < b.category) {
-    return -1;
-  } else {
-    return 1;
+// sort by category, then by value, then by round
+data.sort((a, b) => {
+  if (a.category !== b.category) {
+    return a.category < b.category ? -1 : 1;
   }
+
+  if (a.value !== b.value) {
+    return a.value - b.value;
+  }
+
+  return order.indexOf(a.round) - order.indexOf(b.round);
 });
 
-// stringify
-const newData = JSON.stringify(dataWithIds, null, 2);
+// number the clues in the order they're written out
+const questions = data.map((question, index) => ({ ...question, id: index }));
 
 // write back to outfile
-fs.writeFileSync("./combined.json", newData, { encoding: "utf-8", flag: "w" });
+fs.writeFileSync("./combined.json", JSON.stringify(questions, null, 2), {
+  encoding: "utf-8",
+  flag: "w",
+});
 
 // inform user of success
-console.log("Successfully formatted question data");
+console.log(
+  `Successfully formatted ${questions.length.toLocaleString()} questions`
+);
